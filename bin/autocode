@@ -5,10 +5,10 @@ const minimist = require('minimist')(process.argv.slice(2))
 
 // load packages
 const ascii = require('../cli/lib/ascii')()
-const Autocode = require(`../${minimist.debug ? 'src' : 'lib'}/autocode`)
 
 // load modules
 import _ from 'lodash'
+import Autocode from '../lib/autocode'
 import bluebird from 'bluebird'
 import colors from 'colors' // eslint-disable-line no-unused-vars
 import fs from 'fs'
