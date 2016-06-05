@@ -1,153 +1,160 @@
 #!/usr/bin/env node
 
 // load minimist
-var minimist = require('minimist')(process.argv.slice(2))
-
-if (minimist.debug) {
-	require('coffee-script').register()
-}
+const minimist = require('minimist')(process.argv.slice(2))
 
 // load packages
-var ascii = require('../cli/lib/ascii')(),
-	autocode = require('../' + (minimist.debug ? 'src' : 'lib') + '/autocode'),
-	bluebird = require('bluebird'),
-	colors = require('colors'),
-	fs = require('fs'),
-	userHome = require('user-home'),
-	yaml = require('js-yaml')
-	
+const ascii = require('../cli/lib/ascii')()
+const Autocode = require(`../${minimist.debug ? 'src' : 'lib'}/autocode`)
+
+// load modules
+import _ from 'lodash'
+import bluebird from 'bluebird'
+import colors from 'colors' // eslint-disable-line no-unused-vars
+import fs from 'fs'
+import userHome from 'user-home'
+import yaml from 'js-yaml'
+
 // handle uncaught exceptions
-process.on('uncaughtException', function (e) {
+process.on('uncaughtException', e => {
 	if (minimist.debug) {
 		throw e
 	}
-	console.log(e.message.red)
+	console.log(e.message.red) // eslint-disable-line no-console
 })
 
 // get commands
-var commands = yaml.safeLoad(fs.readFileSync(__dirname + '/../cli/cmd.yml'))
+const commands = yaml.safeLoad(fs.readFileSync(`${__dirname}/../cli/cmd.yml`))
 
 // get project
-var project = new autocode()
+const project = new Autocode()
 
 // validate commands
-for (var command in commands) {
-	if (!project[command] && command != 'help') {
-		throw new Error('Invalid command: ' + command)
+for (const command in commands) {
+	if (!project[command] && command !== 'help') {
+		throw new Error(`Invalid command: ${command}`)
 	}
 }
 
 // get command
-var command = minimist._[0] || 'help'
+const command = minimist._[0] || 'help'
 
 // validate command
 if (!commands[command]) {
-	throw new Error('Unknown command: ' + command)
+	throw new Error(`Unknown command: ${command}`)
 }
 
 // display ascii
-if (minimist.debug || command == 'help') {
-	console.log(ascii.gray)
+if (minimist.debug || command === 'help') {
+	console.log(ascii.gray) // eslint-disable-line no-console
 }
 
 // get autocode output
-bluebird.try(function() {
+bluebird.try(() => {
 	// change cwd
-	if (command != 'info' && command != 'import' && command != 'install' && command != 'link' && command != 'search' && minimist._[1]) {
-		var dest = minimist._[1].split('@')
-		var version = dest[1] || 'latest'
-		var module = dest[0]
-		
-		var cwd = userHome + '/.autocode/module/github.com/' + module + '/' + version
+	if (!_.contains(['info', 'import', 'install', 'link', 'search'], command) && minimist._[1]) {
+		const dest = minimist._[1].split('@')
+		const version = dest[1] || 'latest'
+		const module = dest[0]
+
+		const cwd = `${userHome}/.autocode/module/github.com/${module}/${version}`
 		if (!fs.existsSync(cwd)) {
-			throw new Error('Module (' + module + '@' + version + ') does not exist at: ' + cwd)
+			throw new Error(`Module (${module}@${version}) does not exist at: ${cwd}`)
 		}
-		
+
 		process.chdir(cwd)
 	}
-	
-	if (command == 'build' || command == 'config' || command == 'import' || command == 'run' || command == 'stop' || command == 'update') {
+
+	if (_.contains(['build', 'config', 'import', 'run', 'stop', 'update'], command)) {
 		project.load(process.cwd())
 	}
-	
+
 	switch (command) {
-		case 'cache':
+		case 'cache': {
 			project.cache(
 				minimist._[1] || minimist.key,
 				minimist._[2] || minimist.value,
-				minimist.debug ? true : false
+				minimist.debug
 			)
 			break
-		
-		case 'config':
+		}
+
+		case 'config': {
 			project.load(process.cwd())
-			
-			console.log(
-				yaml.safeDump(project.config).blue
-			)
+
+			console.log(yaml.safeDump(project.config).blue) // eslint-disable-line no-console
 			break
-			
-		case 'help':
-			var output = require(__dirname + '/../cli/lib/help')(commands)
-			console.log(output)
+		}
+
+		case 'help': {
+			const output = require(`${__dirname}/../cli/lib/help`)(commands)
+			console.log(output) // eslint-disable-line no-console
 			break
-		
-		case 'import':
+		}
+
+		case 'import': {
 			project.import({
 				name: minimist._[1],
-				force: minimist.f || minimist.force ? true : false
+				force: minimist.f || minimist.force
 			})
-		
+
 			break
-		
-		case 'install':
+		}
+
+		case 'install': {
 			project.install({
 				name: minimist._[1],
-				force: minimist.f || minimist.force ? true : false
+				force: minimist.f || minimist.force
 			})
-		
+
 			break
-		
-		case 'link':
-			var config = project.config('.')
-			var version = config.version
-			var id = config.id
-			
+		}
+
+		case 'link': {
+			const config = project.config('.')
+			let version = config.version
+			let id = config.id
+
 			if (minimist._[1]) {
-				var dest = minimist._[1].split('@')
+				const dest = minimist._[1].split('@')
 				version = dest[1]
 				if (dest[0].length) {
 					id = dest[0]
 				}
 			}
-			
-			var collection = id.slice(0, id.lastIndexOf('.'))
-			var module = id.slice(id.lastIndexOf('.')+1)
-			
+
+			const collection = id.slice(0, id.lastIndexOf('.'))
+			const module = id.slice(id.lastIndexOf('.') + 1)
+
+			let src = process.cwd()
 			if (minimist._[2]) {
-				var src = minimist._[2]
-			} else {
-				var src = process.cwd()
+				src = minimist._[2]
 			}
-			
-			var force = minimist.f === true || minimist.force === true ? true : false
-			
+
+			let force = false
+			if (minimist.f === true || minimist.force === true) {
+				force = true
+			}
+
 			project.build(minimist)
-			
+
 			project.link({
-				collection: collection,
-				force: force,
-				module: module,
-				src: src,
-				version: version
+				collection,
+				force,
+				module,
+				src,
+				version
 			})
-			
+
 			break
-			
-		case 'signup':
+		}
+
+		case 'signup': {
 			project.signup()
 			break
-		default:
+		}
+
+		default: {
 			if (minimist.f === true) {
 				minimist.force = true
 			}
@@ -156,12 +163,13 @@ bluebird.try(function() {
 			}
 			project[command](minimist)
 			break
-	}	
+		}
+	}
 })
 
-.catch(function(e) {
+.catch(e => {
 	if (minimist.debug) {
 		throw e
 	}
-	console.log(e.message.red)
+	console.log(e.message.red) // eslint-disable-line no-console
 })
